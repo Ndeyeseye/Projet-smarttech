@@ -1,14 +1,16 @@
 <?php
-// Activez l'affichage des erreurs pour le débogage
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Activer l'affichage des erreurs
 error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 // Inclure la connexion à la base de données
 include '/var/www/html/smarttech/db.php';
 
-// Traitement du formulaire
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// Inclure le script d'envoi d'e-mails
+require 'send-mail.php';
+
+// Vérifier si le formulaire est soumis
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Récupérer les données du formulaire
     $nom = $_POST['nom'];
     $prenom = $_POST['prenom'];
@@ -17,31 +19,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $date_embauche = $_POST['date_embauche'];
     $salaire = $_POST['salaire'];
 
-    // Afficher les données pour vérification (débogage)
-    echo "<pre>";
-    print_r($_POST);
-    echo "</pre>";
+    // Insérer l'employé dans la base de données
+    $sql = "INSERT INTO employes (nom, prenom, email, poste, date_embauche, salaire) 
+            VALUES ('$nom', '$prenom', '$email', '$poste', '$date_embauche', '$salaire')";
 
-    // Préparer et exécuter la requête SQL
-    $sql = "INSERT INTO employes (nom, prenom, email, poste, date_embauche, salaire) VALUES (:nom, :prenom, :email, :poste, :date_embauche, :salaire)";
-    $stmt = $conn->prepare($sql);
+    if ($conn->query($sql)) {
+        // Envoyer un e-mail de notification à l'employé
+        $subject = "Bienvenue chez Smarttech";
+        $body = "Bonjour $prenom $nom,<br><br>"
+              . "Nous sommes ravis de vous accueillir chez Smarttech en tant que $poste.<br>"
+              . "Votre date d'embauche est le $date_embauche et votre salaire est de $salaire €.<br><br>"
+              . "Cordialement,<br>L'équipe Smarttech";
 
-    // Exécuter la requête
-    if ($stmt->execute([
-        'nom' => $nom,
-        'prenom' => $prenom,
-        'email' => $email,
-        'poste' => $poste,
-        'date_embauche' => $date_embauche,
-        'salaire' => $salaire
-    ])) {
-        echo "Employé ajouté avec succès !";
-        // Rediriger vers la liste des employés après l'insertion
-        header('Location: read.php');
-        exit(); // Arrêter l'exécution du script après la redirection
+        $result = sendEmail($email, $subject, $body);
+
+        if ($result === true) {
+            echo "Employé ajouté avec succès et e-mail envoyé !";
+        } else {
+            echo "Employé ajouté, mais l'e-mail n'a pas pu être envoyé : $result";
+        }
     } else {
-        echo "Erreur lors de l'ajout de l'employé.";
+        echo "Erreur lors de l'ajout de l'employé : " . $conn->error;
     }
+
+    // Rediriger vers la page de liste des employés
+    header("Location: read.php");
+    exit();
 }
 ?>
 
